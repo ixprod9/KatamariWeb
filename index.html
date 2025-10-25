@@ -73,46 +73,20 @@
 <script>
 const drag = document.getElementById("draggable");
 const img = document.getElementById("emoji");
-const stage = document.querySelector(".stage");
 
 let isDragging = false;
 let startX, startY, offsetX = 0, offsetY = 0;
 let moved = false;
 let bouncing = false;
-let vx = 2, vy = 2; // velocity
+let vx = 2.5, vy = 2.5;
 let animationFrame;
-
-// ----- Dragging -----
-drag.addEventListener("pointerdown", e => {
-  if (bouncing) return; // disable dragging while bouncing
-  isDragging = true;
-  startX = e.clientX - offsetX;
-  startY = e.clientY - offsetY;
-  drag.setPointerCapture(e.pointerId);
-  moved = false;
-});
-
-drag.addEventListener("pointermove", e => {
-  if (!isDragging || bouncing) return;
-  moved = true;
-  offsetX = e.clientX - startX;
-  offsetY = e.clientY - startY;
-  drag.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
-});
-
-drag.addEventListener("pointerup", e => {
-  if (bouncing) return;
-  isDragging = false;
-  drag.releasePointerCapture(e.pointerId);
-  if (!moved) {
-    img.classList.remove("spin");
-    void img.offsetWidth; // restart spin animation
-    img.classList.add("spin");
-  }
-});
+let idleTimer;
 
 // ----- DVD Bounce Logic -----
 function startBounce() {
+  if (bouncing) return;
+  bouncing = true;
+
   const rect = img.getBoundingClientRect();
   let x = rect.left;
   let y = rect.top;
@@ -120,20 +94,17 @@ function startBounce() {
   const h = rect.height;
 
   const bounce = () => {
+    if (!bouncing) return;
+
     const stageW = window.innerWidth;
     const stageH = window.innerHeight;
 
     x += vx;
     y += vy;
 
-    if (x <= 0 || x + w >= stageW) {
-      vx = -vx;
-      img.style.filter = `hue-rotate(${Math.random() * 360}deg)`; // color shift for fun
-    }
-    if (y <= 0 || y + h >= stageH) {
-      vy = -vy;
-      img.style.filter = `hue-rotate(${Math.random() * 360}deg)`;
-    }
+    // Bounce off edges
+    if (x <= 0 || x + w >= stageW) vx = -vx;
+    if (y <= 0 || y + h >= stageH) vy = -vy;
 
     drag.style.transform = `translate(${x}px, ${y}px)`;
     animationFrame = requestAnimationFrame(bounce);
@@ -143,30 +114,56 @@ function startBounce() {
 }
 
 function stopBounce() {
-  cancelAnimationFrame(animationFrame);
   bouncing = false;
-  // Reset transform back to center
-  drag.style.transform = `translate(-50%, -50%)`;
-  offsetX = 0;
-  offsetY = 0;
+  cancelAnimationFrame(animationFrame);
 }
 
-// ----- Double-click / Double-tap -----
-let lastTap = 0;
-img.addEventListener("click", (e) => {
-  const now = Date.now();
-  if (now - lastTap < 300) {
-    bouncing = !bouncing;
-    if (bouncing) startBounce();
-    else stopBounce();
+// ----- Idle Timer -----
+function resetIdleTimer() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if (!bouncing) startBounce();
+  }, 5000); // 5 seconds idle -> bounce resumes
+}
+
+// ----- Dragging -----
+drag.addEventListener("pointerdown", e => {
+  stopBounce();
+  isDragging = true;
+  startX = e.clientX - offsetX;
+  startY = e.clientY - offsetY;
+  drag.setPointerCapture(e.pointerId);
+  moved = false;
+  resetIdleTimer();
+});
+
+drag.addEventListener("pointermove", e => {
+  if (!isDragging) return;
+  moved = true;
+  offsetX = e.clientX - startX;
+  offsetY = e.clientY - startY;
+  drag.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
+});
+
+drag.addEventListener("pointerup", e => {
+  isDragging = false;
+  drag.releasePointerCapture(e.pointerId);
+  if (!moved) {
+    img.classList.remove("spin");
+    void img.offsetWidth; // restart spin animation
+    img.classList.add("spin");
   }
-  lastTap = now;
+  resetIdleTimer();
 });
 
 // Handle window resize
 window.addEventListener("resize", () => {
   if (bouncing) stopBounce();
+  resetIdleTimer();
 });
+
+// Start the bounce right away
+startBounce();
 </script>
 </body>
 </html>
