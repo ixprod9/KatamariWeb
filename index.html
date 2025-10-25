@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>katamari</title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: #0d0d0d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    touch-action: none;
+  }
+
+  .drag {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+
+  .drag:active {
+    cursor: grabbing;
+  }
+
+  img {
+    display: block;
+    width: 180px;
+    height: auto;
+    -webkit-user-drag: none;
+    user-drag: none;
+    pointer-events: none;
+    transition: transform 0.1s ease-out;
+  }
+
+  .spin {
+    animation: spin 0.8s linear;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="drag" id="draggable">
+      <img id="emoji" src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128" alt="katamari emoji">
+    </div>
+  </div>
+
+<script>
+const drag = document.getElementById("draggable");
+const img = document.getElementById("emoji");
+
+let isDragging = false;
+let startX, startY, offsetX = 0, offsetY = 0;
+let moved = false;
+
+drag.addEventListener("pointerdown", e => {
+  isDragging = true;
+  startX = e.clientX - offsetX;
+  startY = e.clientY - offsetY;
+  drag.setPointerCapture(e.pointerId);
+  moved = false;
+});
+
+drag.addEventListener("pointermove", e => {
+  if (!isDragging) return;
+  moved = true;
+  offsetX = e.clientX - startX;
+  offsetY = e.clientY - startY;
+  drag.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
+});
+
+drag.addEventListener("pointerup", e => {
+  isDragging = false;
+  drag.releasePointerCapture(e.pointerId);
+  if (!moved) {
+    img.classList.remove("spin");
+    void img.offsetWidth; // reset animation
+    img.classList.add("spin");
+  }
+});
+</script>
+</body>
+</html>
