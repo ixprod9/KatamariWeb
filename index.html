@@ -16,24 +16,12 @@
       linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
     background-size: 40px 40px;
     background-position: 0 0, 0 20px, 20px -20px, -20px 0px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     overflow: hidden;
-  }
-
-  .stage {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
     touch-action: none;
   }
 
   .drag {
     position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
     cursor: grab;
     user-select: none;
     touch-action: none;
@@ -45,7 +33,7 @@
 
   img {
     display: block;
-    width: 180px;
+    width: 160px;
     height: auto;
     -webkit-user-drag: none;
     user-drag: none;
@@ -64,10 +52,8 @@
 </style>
 </head>
 <body>
-  <div class="stage">
-    <div class="drag" id="draggable">
-      <img id="emoji" src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128" alt="katamari emoji">
-    </div>
+  <div class="drag" id="draggable">
+    <img id="emoji" src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128" alt="katamari emoji">
   </div>
 
 <script>
@@ -78,20 +64,41 @@ let isDragging = false;
 let startX, startY, offsetX = 0, offsetY = 0;
 let moved = false;
 let bouncing = false;
-let vx = 2.5, vy = 2.5;
+let vx = 3, vy = 2.5;
+let x, y, w, h;
 let animationFrame;
 let idleTimer;
 
-// ----- DVD Bounce Logic -----
+// ----- Update window & image bounds -----
+function updateBounds() {
+  w = img.offsetWidth;
+  h = img.offsetHeight;
+
+  // Keep it within the screen bounds
+  const stageW = window.innerWidth;
+  const stageH = window.innerHeight;
+
+  if (x == null) {
+    // Start centered
+    x = (stageW - w) / 2;
+    y = (stageH - h) / 2;
+  } else {
+    // Clamp if off-screen after resize
+    x = Math.min(Math.max(x, 0), stageW - w);
+    y = Math.min(Math.max(y, 0), stageH - h);
+  }
+  drag.style.left = `${x}px`;
+  drag.style.top = `${y}px`;
+}
+
+window.addEventListener("resize", () => {
+  updateBounds();
+});
+
+// ----- DVD Bounce -----
 function startBounce() {
   if (bouncing) return;
   bouncing = true;
-
-  const rect = img.getBoundingClientRect();
-  let x = rect.left;
-  let y = rect.top;
-  const w = rect.width;
-  const h = rect.height;
 
   const bounce = () => {
     if (!bouncing) return;
@@ -102,11 +109,27 @@ function startBounce() {
     x += vx;
     y += vy;
 
-    // Bounce off edges
-    if (x <= 0 || x + w >= stageW) vx = -vx;
-    if (y <= 0 || y + h >= stageH) vy = -vy;
+    // Bounce horizontally
+    if (x <= 0) {
+      x = 0;
+      vx = Math.abs(vx);
+    } else if (x + w >= stageW) {
+      x = stageW - w;
+      vx = -Math.abs(vx);
+    }
 
-    drag.style.transform = `translate(${x}px, ${y}px)`;
+    // Bounce vertically
+    if (y <= 0) {
+      y = 0;
+      vy = Math.abs(vy);
+    } else if (y + h >= stageH) {
+      y = stageH - h;
+      vy = -Math.abs(vy);
+    }
+
+    drag.style.left = `${x}px`;
+    drag.style.top = `${y}px`;
+
     animationFrame = requestAnimationFrame(bounce);
   };
 
@@ -123,26 +146,35 @@ function resetIdleTimer() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
     if (!bouncing) startBounce();
-  }, 5000); // 5 seconds idle -> bounce resumes
+  }, 3000);
 }
 
 // ----- Dragging -----
 drag.addEventListener("pointerdown", e => {
   stopBounce();
   isDragging = true;
-  startX = e.clientX - offsetX;
-  startY = e.clientY - offsetY;
-  drag.setPointerCapture(e.pointerId);
   moved = false;
+  startX = e.clientX - x;
+  startY = e.clientY - y;
+  drag.setPointerCapture(e.pointerId);
   resetIdleTimer();
 });
 
 drag.addEventListener("pointermove", e => {
   if (!isDragging) return;
   moved = true;
-  offsetX = e.clientX - startX;
-  offsetY = e.clientY - startY;
-  drag.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
+
+  x = e.clientX - startX;
+  y = e.clientY - startY;
+
+  // Keep image inside screen
+  const stageW = window.innerWidth;
+  const stageH = window.innerHeight;
+  x = Math.min(Math.max(x, 0), stageW - w);
+  y = Math.min(Math.max(y, 0), stageH - h);
+
+  drag.style.left = `${x}px`;
+  drag.style.top = `${y}px`;
 });
 
 drag.addEventListener("pointerup", e => {
@@ -150,19 +182,14 @@ drag.addEventListener("pointerup", e => {
   drag.releasePointerCapture(e.pointerId);
   if (!moved) {
     img.classList.remove("spin");
-    void img.offsetWidth; // restart spin animation
+    void img.offsetWidth; // restart spin
     img.classList.add("spin");
   }
   resetIdleTimer();
 });
 
-// Handle window resize
-window.addEventListener("resize", () => {
-  if (bouncing) stopBounce();
-  resetIdleTimer();
-});
-
-// Start the bounce right away
+// Initialize
+updateBounds();
 startBounce();
 </script>
 </body>
