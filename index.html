@@ -57,7 +57,7 @@
     display: none;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 1.5s ease-out;
+    transition: opacity 1s ease-out;
   }
 </style>
 </head>
@@ -157,16 +157,16 @@ function triggerExplosion() {
   explosion.style.display = "block";
   explosion.style.opacity = "1";
 
-  // Make sure GIF only plays once (reload trick)
+  // Reload the GIF to make sure it starts fresh
   explosion.src = "";
   setTimeout(() => {
     explosion.src = "explosion.gif";
   }, 50);
 
-  // Fade out explosion after ~2.5s
+  // Fade out explosion after 1 second
   setTimeout(() => {
     explosion.style.opacity = "0";
-  }, 2500);
+  }, 1000);
 }
 
 // ----- Dragging -----
