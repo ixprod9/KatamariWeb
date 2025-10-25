@@ -58,18 +58,7 @@
     top: 50%;
     transform: translate(-50%, -50%);
     display: none;
-  }
-
-  #message {
-    position: absolute;
-    top: 55%;
-    width: 100%;
-    text-align: center;
-    color: #f44;
-    font-family: monospace;
-    font-size: 1.2rem;
-    opacity: 0;
-    transition: opacity 1s;
+    pointer-events: none;
   }
 </style>
 </head>
@@ -78,13 +67,11 @@
     <img id="emoji" src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128" alt="katamari emoji">
   </div>
   <img id="explosion" src="explosion.gif" alt="Explosion">
-  <div id="message">oh no</div>
 
 <script>
 const drag = document.getElementById("draggable");
 const img = document.getElementById("emoji");
 const explosion = document.getElementById("explosion");
-const message = document.getElementById("message");
 
 let isDragging = false;
 let startX, startY, offsetX = 0, offsetY = 0;
@@ -96,8 +83,6 @@ let animationFrame;
 let idleTimer;
 let lastTime = 0;
 let lastPos = { x: 0, y: 0 };
-
-// explosion state
 let exploded = false;
 
 // ----- Update window & image bounds -----
@@ -167,7 +152,6 @@ function triggerExplosion() {
   stopBounce();
   img.style.display = "none";
   explosion.style.display = "block";
-  message.style.opacity = "1";
 }
 
 // ----- Dragging -----
@@ -193,7 +177,8 @@ drag.addEventListener("pointermove", e => {
 
   const speed = Math.sqrt(dx * dx + dy * dy) / (dt || 1);
 
-  if (speed > 2.5) { // adjust threshold if needed
+  // Higher threshold: harder to trigger explosion
+  if (speed > 6) { // you can tweak this number
     triggerExplosion();
     return;
   }
