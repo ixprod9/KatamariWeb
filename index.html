@@ -49,16 +49,42 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
+
+  #explosion {
+    position: absolute;
+    width: 220px;
+    height: auto;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+  }
+
+  #message {
+    position: absolute;
+    top: 55%;
+    width: 100%;
+    text-align: center;
+    color: #f44;
+    font-family: monospace;
+    font-size: 1.2rem;
+    opacity: 0;
+    transition: opacity 1s;
+  }
 </style>
 </head>
 <body>
   <div class="drag" id="draggable">
     <img id="emoji" src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128" alt="katamari emoji">
   </div>
+  <img id="explosion" src="explosion.gif" alt="Explosion">
+  <div id="message">oh no</div>
 
 <script>
 const drag = document.getElementById("draggable");
 const img = document.getElementById("emoji");
+const explosion = document.getElementById("explosion");
+const message = document.getElementById("message");
 
 let isDragging = false;
 let startX, startY, offsetX = 0, offsetY = 0;
@@ -68,22 +94,23 @@ let vx = 3, vy = 2.5;
 let x, y, w, h;
 let animationFrame;
 let idleTimer;
+let lastTime = 0;
+let lastPos = { x: 0, y: 0 };
+
+// explosion state
+let exploded = false;
 
 // ----- Update window & image bounds -----
 function updateBounds() {
   w = img.offsetWidth;
   h = img.offsetHeight;
-
-  // Keep it within the screen bounds
   const stageW = window.innerWidth;
   const stageH = window.innerHeight;
 
   if (x == null) {
-    // Start centered
     x = (stageW - w) / 2;
     y = (stageH - h) / 2;
   } else {
-    // Clamp if off-screen after resize
     x = Math.min(Math.max(x, 0), stageW - w);
     y = Math.min(Math.max(y, 0), stageH - h);
   }
@@ -91,17 +118,15 @@ function updateBounds() {
   drag.style.top = `${y}px`;
 }
 
-window.addEventListener("resize", () => {
-  updateBounds();
-});
+window.addEventListener("resize", updateBounds);
 
 // ----- DVD Bounce -----
 function startBounce() {
-  if (bouncing) return;
+  if (bouncing || exploded) return;
   bouncing = true;
 
   const bounce = () => {
-    if (!bouncing) return;
+    if (!bouncing || exploded) return;
 
     const stageW = window.innerWidth;
     const stageH = window.innerHeight;
@@ -109,30 +134,17 @@ function startBounce() {
     x += vx;
     y += vy;
 
-    // Bounce horizontally
-    if (x <= 0) {
-      x = 0;
-      vx = Math.abs(vx);
-    } else if (x + w >= stageW) {
-      x = stageW - w;
-      vx = -Math.abs(vx);
-    }
+    if (x <= 0) { x = 0; vx = Math.abs(vx); }
+    else if (x + w >= stageW) { x = stageW - w; vx = -Math.abs(vx); }
 
-    // Bounce vertically
-    if (y <= 0) {
-      y = 0;
-      vy = Math.abs(vy);
-    } else if (y + h >= stageH) {
-      y = stageH - h;
-      vy = -Math.abs(vy);
-    }
+    if (y <= 0) { y = 0; vy = Math.abs(vy); }
+    else if (y + h >= stageH) { y = stageH - h; vy = -Math.abs(vy); }
 
     drag.style.left = `${x}px`;
     drag.style.top = `${y}px`;
 
     animationFrame = requestAnimationFrame(bounce);
   };
-
   bounce();
 }
 
@@ -145,12 +157,22 @@ function stopBounce() {
 function resetIdleTimer() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    if (!bouncing) startBounce();
-  }, 3000);
+    if (!bouncing && !exploded) startBounce();
+  }, 5000);
+}
+
+// ----- Trigger Explosion -----
+function triggerExplosion() {
+  exploded = true;
+  stopBounce();
+  img.style.display = "none";
+  explosion.style.display = "block";
+  message.style.opacity = "1";
 }
 
 // ----- Dragging -----
 drag.addEventListener("pointerdown", e => {
+  if (exploded) return;
   stopBounce();
   isDragging = true;
   moved = false;
@@ -161,13 +183,27 @@ drag.addEventListener("pointerdown", e => {
 });
 
 drag.addEventListener("pointermove", e => {
-  if (!isDragging) return;
+  if (!isDragging || exploded) return;
   moved = true;
+
+  const now = performance.now();
+  const dt = now - lastTime;
+  const dx = e.clientX - lastPos.x;
+  const dy = e.clientY - lastPos.y;
+
+  const speed = Math.sqrt(dx * dx + dy * dy) / (dt || 1);
+
+  if (speed > 2.5) { // adjust threshold if needed
+    triggerExplosion();
+    return;
+  }
+
+  lastTime = now;
+  lastPos = { x: e.clientX, y: e.clientY };
 
   x = e.clientX - startX;
   y = e.clientY - startY;
 
-  // Keep image inside screen
   const stageW = window.innerWidth;
   const stageH = window.innerHeight;
   x = Math.min(Math.max(x, 0), stageW - w);
@@ -178,11 +214,12 @@ drag.addEventListener("pointermove", e => {
 });
 
 drag.addEventListener("pointerup", e => {
+  if (exploded) return;
   isDragging = false;
   drag.releasePointerCapture(e.pointerId);
   if (!moved) {
     img.classList.remove("spin");
-    void img.offsetWidth; // restart spin
+    void img.offsetWidth;
     img.classList.add("spin");
   }
   resetIdleTimer();
