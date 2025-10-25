@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katamari Chaos</title>
+<title>katamari</title>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
 <style>
   html, body {
     height: 100%;
@@ -15,225 +16,338 @@
       linear-gradient(45deg, transparent 75%, #1a1a1a 75%),
       linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
     background-size: 40px 40px;
-    background-position: 0 0, 0 20px, 20px -20px, -20px 0px;
     overflow: hidden;
-    touch-action: none;
+    font-family: 'Lilita One', sans-serif;
   }
 
   .drag {
     position: absolute;
     cursor: grab;
     user-select: none;
-    touch-action: none;
-  }
-
-  .drag:active {
-    cursor: grabbing;
   }
 
   img {
     display: block;
     width: 160px;
     height: auto;
-    -webkit-user-drag: none;
-    user-drag: none;
     pointer-events: none;
-    transition: transform 0.1s ease-out;
-  }
-
-  .spin {
-    animation: spin 0.8s linear;
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
   }
 
   .explosion {
     position: absolute;
     width: 240px;
-    height: auto;
     display: none;
     pointer-events: none;
     opacity: 0;
     transition: opacity 1s ease-out;
   }
 
-  button {
+  /* ✅ Dock panel */
+  .dock {
     position: fixed;
-    bottom: 20px;
+    bottom: 30px;
     left: 50%;
     transform: translateX(-50%);
+    background: rgba(25, 25, 25, 0.9);
+    border: 2px solid #26c950;
+    border-radius: 20px;
+    padding: 15px 25px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px);
+    cursor: grab;
+    user-select: none;
+    z-index: 9999;
+  }
+
+  .dock:active {
+    cursor: grabbing;
+  }
+
+  button {
     background-color: #26c950;
-    color: #fff;
-    font-size: 18px;
+    color: white;
+    font-size: 24px;
+    font-family: 'Lilita One', sans-serif;
     border: none;
-    border-radius: 12px;
-    padding: 10px 20px;
+    border-radius: 14px;
+    padding: 12px 26px;
     cursor: pointer;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    transition: background-color 0.2s ease;
-    z-index: 10;
+    transition: transform 0.1s ease, background-color 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
+
+  button:active {
+    animation: bounce 0.3s ease;
+  }
+
+  @keyframes bounce {
+    0% { transform: scale(1); }
+    30% { transform: scale(0.9); }
+    60% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
   button:hover {
     background-color: #1faa43;
+  }
+
+  label {
+    color: white;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 26px;
+    height: 26px;
+    border: 2px solid #26c950;
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+    background-color: transparent;
+  }
+
+  input[type="checkbox"]:checked {
+    background-color: #26c950;
+    box-shadow: 0 0 6px #26c950;
+  }
+
+  input[type="checkbox"]::after {
+    content: "";
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    top: 6px;
+    left: 6px;
+    border-radius: 50%;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  input[type="checkbox"]:checked::after {
+    opacity: 1;
   }
 </style>
 </head>
 <body>
 
+<!-- ✅ Dock UI -->
+<div class="dock" id="dock">
   <button id="spawnBtn">Spawn Katamari</button>
+  <label><input type="checkbox" id="collisionToggle" checked> Collisions</label>
+  <label><input type="checkbox" id="followToggle"> Follow Cursor</label>
+</div>
 
-  <audio id="boomSound" src="boom.mp3" preload="auto"></audio>
+<audio id="boomSound" src="boom.mp3" preload="auto"></audio>
 
 <script>
+const dock = document.getElementById("dock");
 const spawnBtn = document.getElementById("spawnBtn");
-const baseEmoji = "https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128";
-let katamariCount = 0;
+const collisionToggle = document.getElementById("collisionToggle");
+const followToggle = document.getElementById("followToggle");
+const boomSound = document.getElementById("boomSound");
 
+const baseEmoji = "https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128";
+
+let collisionsEnabled = true;
+let followEnabled = false;
+let mouseX = 0, mouseY = 0;
+const followRadius = 400;
+
+const katamaris = [];
+
+collisionToggle.addEventListener("change", () => collisionsEnabled = collisionToggle.checked);
+followToggle.addEventListener("change", () => followEnabled = followToggle.checked);
+document.addEventListener("pointermove", e => { mouseX = e.clientX; mouseY = e.clientY; });
+
+/* ✅ Responsive Dock Position Tracking */
+let dockRelativeX = 0.5;
+let dockRelativeY = 1; // bottom center
+let isDraggingDock = false, offsetX = 0, offsetY = 0;
+
+function updateDockPosition() {
+  // keep dock inside the screen bounds
+  const maxX = window.innerWidth - dock.offsetWidth - 10;
+  const maxY = window.innerHeight - dock.offsetHeight - 10;
+  const newX = dockRelativeX * window.innerWidth - dock.offsetWidth / 2;
+  const newY = dockRelativeY * window.innerHeight - dock.offsetHeight;
+
+  dock.style.left = Math.max(10, Math.min(maxX, newX)) + "px";
+  dock.style.top = Math.max(10, Math.min(maxY, newY)) + "px";
+  dock.style.bottom = "auto";
+  dock.style.transform = "none";
+}
+
+window.addEventListener("resize", updateDockPosition);
+
+dock.addEventListener("pointerdown", e => {
+  if (["BUTTON", "INPUT", "LABEL"].includes(e.target.tagName)) return;
+  isDraggingDock = true;
+  offsetX = e.clientX - dock.offsetLeft;
+  offsetY = e.clientY - dock.offsetTop;
+  dock.setPointerCapture(e.pointerId);
+});
+
+dock.addEventListener("pointermove", e => {
+  if (!isDraggingDock) return;
+  let newX = e.clientX - offsetX;
+  let newY = e.clientY - offsetY;
+  newX = Math.max(10, Math.min(window.innerWidth - dock.offsetWidth - 10, newX));
+  newY = Math.max(10, Math.min(window.innerHeight - dock.offsetHeight - 10, newY));
+  dock.style.left = `${newX}px`;
+  dock.style.top = `${newY}px`;
+  dock.style.bottom = "auto";
+  dock.style.transform = "none";
+  // store relative position (0 to 1)
+  dockRelativeX = (newX + dock.offsetWidth / 2) / window.innerWidth;
+  dockRelativeY = (newY + dock.offsetHeight) / window.innerHeight;
+});
+
+dock.addEventListener("pointerup", e => {
+  isDraggingDock = false;
+  dock.releasePointerCapture(e.pointerId);
+});
+
+/* --- KATAMARI LOGIC --- */
 function createKatamari() {
   const drag = document.createElement("div");
-  drag.classList.add("drag");
+  drag.className = "drag";
   drag.style.left = Math.random() * (window.innerWidth - 160) + "px";
   drag.style.top = Math.random() * (window.innerHeight - 160) + "px";
-  
+
   const img = document.createElement("img");
   img.src = baseEmoji;
-  img.alt = "katamari emoji";
   drag.appendChild(img);
   document.body.appendChild(drag);
 
   const explosion = document.createElement("img");
-  explosion.classList.add("explosion");
+  explosion.className = "explosion";
   explosion.src = "explosion.gif";
-  explosion.id = "explosion_" + katamariCount++;
   document.body.appendChild(explosion);
 
-  initKatamari(drag, img, explosion);
+  const k = {
+    drag, img, explosion,
+    x: parseFloat(drag.style.left),
+    y: parseFloat(drag.style.top),
+    vx: (Math.random() < 0.5 ? -1 : 1) * 4,
+    vy: (Math.random() < 0.5 ? -1 : 1) * 4,
+    radius: 80,
+    exploded: false
+  };
+
+  katamaris.push(k);
+  setupDrag(k);
 }
 
-function initKatamari(drag, img, explosion) {
-  let isDragging = false;
-  let startX, startY, offsetX = 0, offsetY = 0;
-  let moved = false;
-  let bouncing = false;
-  let vx = (Math.random() * 2 + 1.5) * (Math.random() < 0.5 ? -1 : 1);
-  let vy = (Math.random() * 2 + 1.5) * (Math.random() < 0.5 ? -1 : 1);
-  let x = parseFloat(drag.style.left);
-  let y = parseFloat(drag.style.top);
-  let w = img.offsetWidth;
-  let h = img.offsetHeight;
-  let animationFrame;
-  let idleTimer;
-  let lastTime = 0;
-  let lastPos = { x: 0, y: 0 };
-  let exploded = false;
+function setupDrag(k) {
+  let isDragging = false, lastTime = 0, lastPos = { x: 0, y: 0 };
 
-  function startBounce() {
-    if (bouncing || exploded) return;
-    bouncing = true;
-    const bounce = () => {
-      if (!bouncing || exploded) return;
-      const stageW = window.innerWidth;
-      const stageH = window.innerHeight;
-      x += vx;
-      y += vy;
-      if (x <= 0) { x = 0; vx = Math.abs(vx); }
-      else if (x + w >= stageW) { x = stageW - w; vx = -Math.abs(vx); }
-      if (y <= 0) { y = 0; vy = Math.abs(vy); }
-      else if (y + h >= stageH) { y = stageH - h; vy = -Math.abs(vy); }
-      drag.style.left = `${x}px`;
-      drag.style.top = `${y}px`;
-      animationFrame = requestAnimationFrame(bounce);
-    };
-    bounce();
-  }
-
-  function stopBounce() {
-    bouncing = false;
-    cancelAnimationFrame(animationFrame);
-  }
-
-  function resetIdleTimer() {
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      if (!bouncing && !exploded) startBounce();
-    }, 5000);
-  }
-
-  function triggerExplosion() {
-    if (exploded) return;
-    exploded = true;
-    stopBounce();
-    img.style.display = "none";
-
-    // explosion at image center
-    explosion.style.left = `${x + w / 2 - 120}px`;
-    explosion.style.top = `${y + h / 2 - 120}px`;
-    explosion.style.display = "block";
-    explosion.style.opacity = "1";
-
-    // play explosion sound
-    const boomSound = document.getElementById("boomSound");
-    boomSound.currentTime = 0;
-    boomSound.play().catch(()=>{});
-
-    // fade out explosion
-    setTimeout(() => {
-      explosion.style.opacity = "0";
-    }, 1000);
-  }
-
-  drag.addEventListener("pointerdown", e => {
-    if (exploded) return;
-    stopBounce();
+  k.drag.addEventListener("pointerdown", e => {
+    if (k.exploded) return;
     isDragging = true;
-    moved = false;
-    startX = e.clientX - x;
-    startY = e.clientY - y;
-    drag.setPointerCapture(e.pointerId);
-    resetIdleTimer();
+    k.drag.setPointerCapture(e.pointerId);
+    lastTime = performance.now();
+    lastPos = { x: e.clientX, y: e.clientY };
   });
 
-  drag.addEventListener("pointermove", e => {
-    if (!isDragging || exploded) return;
-    moved = true;
+  k.drag.addEventListener("pointermove", e => {
+    if (!isDragging || k.exploded) return;
     const now = performance.now();
     const dt = now - lastTime;
     const dx = e.clientX - lastPos.x;
     const dy = e.clientY - lastPos.y;
-    const speed = Math.sqrt(dx * dx + dy * dy) / (dt || 1);
-    if (speed > 7.5) { triggerExplosion(); return; }
+    const speed = Math.sqrt(dx*dx + dy*dy) / (dt || 1);
+    if (speed > 7.5) return triggerExplosion(k);
     lastTime = now;
     lastPos = { x: e.clientX, y: e.clientY };
-    x = e.clientX - startX;
-    y = e.clientY - startY;
-    const stageW = window.innerWidth;
-    const stageH = window.innerHeight;
-    x = Math.min(Math.max(x, 0), stageW - w);
-    y = Math.min(Math.max(y, 0), stageH - h);
-    drag.style.left = `${x}px`;
-    drag.style.top = `${y}px`;
+    k.x = e.clientX - 80;
+    k.y = e.clientY - 80;
   });
 
-  drag.addEventListener("pointerup", e => {
-    if (exploded) return;
+  k.drag.addEventListener("pointerup", e => {
     isDragging = false;
-    drag.releasePointerCapture(e.pointerId);
-    if (!moved) {
-      img.classList.remove("spin");
-      void img.offsetWidth;
-      img.classList.add("spin");
-    }
-    resetIdleTimer();
+    k.drag.releasePointerCapture(e.pointerId);
   });
+}
 
-  startBounce();
+function triggerExplosion(k) {
+  if (k.exploded) return;
+  k.exploded = true;
+  k.img.style.display = "none";
+  boomSound.currentTime = 0;
+  boomSound.play().catch(()=>{});
+  k.explosion.style.left = `${k.x + 40}px`;
+  k.explosion.style.top = `${k.y + 40}px`;
+  k.explosion.style.display = "block";
+  k.explosion.style.opacity = "1";
+  setTimeout(() => k.explosion.style.opacity = "0", 1000);
+}
+
+function update() {
+  const stageW = window.innerWidth;
+  const stageH = window.innerHeight;
+
+  for (let i = 0; i < katamaris.length; i++) {
+    const a = katamaris[i];
+    if (a.exploded) continue;
+
+    const dxToCursor = mouseX - (a.x + a.radius);
+    const dyToCursor = mouseY - (a.y + a.radius);
+    const distToCursor = Math.sqrt(dxToCursor*dxToCursor + dyToCursor*dyToCursor);
+
+    if (followEnabled && distToCursor < followRadius) {
+      const dist = distToCursor || 1;
+      const falloff = 1 - dist / followRadius;
+      const dirX = (dxToCursor / dist) * falloff;
+      const dirY = (dyToCursor / dist) * falloff;
+      a.vx = dirX * 5;
+      a.vy = dirY * 5;
+    }
+
+    a.x += a.vx;
+    a.y += a.vy;
+
+    if (a.x <= 0 || a.x + a.radius*2 >= stageW) a.vx *= -1;
+    if (a.y <= 0 || a.y + a.radius*2 >= stageH) a.vy *= -1;
+
+    a.drag.style.left = `${a.x}px`;
+    a.drag.style.top = `${a.y}px`;
+
+    if (!collisionsEnabled) continue;
+
+    for (let j = i + 1; j < katamaris.length; j++) {
+      const b = katamaris[j];
+      if (b.exploded) continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const minDist = a.radius + b.radius;
+      if (dist < minDist && dist > 0) {
+        const nx = dx / dist, ny = dy / dist;
+        const p = 2 * (a.vx*nx + a.vy*ny - b.vx*nx - b.vy*ny) / 2;
+        a.vx -= p * nx; a.vy -= p * ny;
+        b.vx += p * nx; b.vy += p * ny;
+      }
+    }
+  }
+  requestAnimationFrame(update);
 }
 
 spawnBtn.addEventListener("click", createKatamari);
-createKatamari(); // start with one
+createKatamari();
+updateDockPosition();
+update();
 </script>
 
 </body>
