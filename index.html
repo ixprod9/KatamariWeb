@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Katamari</title>
+<title>Katamari Chaos</title>
 <style>
   html, body {
     height: 100%;
@@ -59,174 +59,185 @@
     opacity: 0;
     transition: opacity 1s ease-out;
   }
+
+  button {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #26c950;
+    color: #fff;
+    font-size: 18px;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: background-color 0.2s ease;
+    z-index: 10;
+  }
+  button:hover {
+    background-color: #1faa43;
+  }
 </style>
 </head>
 <body>
-  <div class="drag" id="draggable">
-    <img id="emoji" src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128" alt="katamari emoji">
-  </div>
+
+  <button id="spawnBtn">Spawn Katamari</button>
+
   <img id="explosion" src="explosion.gif" alt="Explosion">
 
 <script>
-const drag = document.getElementById("draggable");
-const img = document.getElementById("emoji");
-const explosion = document.getElementById("explosion");
+const explosionTemplate = document.getElementById("explosion");
+const spawnBtn = document.getElementById("spawnBtn");
+const baseEmoji = "https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128";
 
-let isDragging = false;
-let startX, startY, offsetX = 0, offsetY = 0;
-let moved = false;
-let bouncing = false;
-let vx = 3, vy = 2.5;
-let x, y, w, h;
-let animationFrame;
-let idleTimer;
-let lastTime = 0;
-let lastPos = { x: 0, y: 0 };
-let exploded = false;
+let katamariCount = 0;
 
-// ----- Update window & image bounds -----
-function updateBounds() {
-  w = img.offsetWidth;
-  h = img.offsetHeight;
-  const stageW = window.innerWidth;
-  const stageH = window.innerHeight;
+function createKatamari() {
+  const drag = document.createElement("div");
+  drag.classList.add("drag");
+  drag.style.left = Math.random() * (window.innerWidth - 160) + "px";
+  drag.style.top = Math.random() * (window.innerHeight - 160) + "px";
+  
+  const img = document.createElement("img");
+  img.src = baseEmoji;
+  img.alt = "katamari emoji";
+  drag.appendChild(img);
+  document.body.appendChild(drag);
+  
+  const explosion = explosionTemplate.cloneNode(true);
+  explosion.id = "explosion_" + katamariCount++;
+  explosion.style.display = "none";
+  document.body.appendChild(explosion);
 
-  if (x == null) {
-    x = (stageW - w) / 2;
-    y = (stageH - h) / 2;
-  } else {
-    x = Math.min(Math.max(x, 0), stageW - w);
-    y = Math.min(Math.max(y, 0), stageH - h);
-  }
-  drag.style.left = `${x}px`;
-  drag.style.top = `${y}px`;
+  initKatamari(drag, img, explosion);
 }
 
-window.addEventListener("resize", updateBounds);
+function initKatamari(drag, img, explosion) {
+  let isDragging = false;
+  let startX, startY, offsetX = 0, offsetY = 0;
+  let moved = false;
+  let bouncing = false;
+  let vx = (Math.random() * 2 + 1.5) * (Math.random() < 0.5 ? -1 : 1);
+  let vy = (Math.random() * 2 + 1.5) * (Math.random() < 0.5 ? -1 : 1);
+  let x = parseFloat(drag.style.left);
+  let y = parseFloat(drag.style.top);
+  let w = img.offsetWidth;
+  let h = img.offsetHeight;
+  let animationFrame;
+  let idleTimer;
+  let lastTime = 0;
+  let lastPos = { x: 0, y: 0 };
+  let exploded = false;
 
-// ----- DVD Bounce -----
-function startBounce() {
-  if (bouncing || exploded) return;
-  bouncing = true;
-
-  const bounce = () => {
-    if (!bouncing || exploded) return;
-
+  function updateBounds() {
     const stageW = window.innerWidth;
     const stageH = window.innerHeight;
-
-    x += vx;
-    y += vy;
-
-    if (x <= 0) { x = 0; vx = Math.abs(vx); }
-    else if (x + w >= stageW) { x = stageW - w; vx = -Math.abs(vx); }
-
-    if (y <= 0) { y = 0; vy = Math.abs(vy); }
-    else if (y + h >= stageH) { y = stageH - h; vy = -Math.abs(vy); }
-
+    w = img.offsetWidth;
+    h = img.offsetHeight;
+    x = Math.min(Math.max(x, 0), stageW - w);
+    y = Math.min(Math.max(y, 0), stageH - h);
     drag.style.left = `${x}px`;
     drag.style.top = `${y}px`;
-
-    animationFrame = requestAnimationFrame(bounce);
-  };
-  bounce();
-}
-
-function stopBounce() {
-  bouncing = false;
-  cancelAnimationFrame(animationFrame);
-}
-
-// ----- Idle Timer -----
-function resetIdleTimer() {
-  clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => {
-    if (!bouncing && !exploded) startBounce();
-  }, 5000);
-}
-
-// ----- Trigger Explosion -----
-function triggerExplosion() {
-  exploded = true;
-  stopBounce();
-  img.style.display = "none";
-
-  // Position explosion where emoji was
-  explosion.style.left = `${x + w / 2 - 120}px`;
-  explosion.style.top = `${y + h / 2 - 120}px`;
-  explosion.style.display = "block";
-  explosion.style.opacity = "1";
-
-  // Reload the GIF to make sure it starts fresh
-  explosion.src = "";
-  setTimeout(() => {
-    explosion.src = "explosion.gif";
-  }, 50);
-
-  // Fade out explosion after 1 second
-  setTimeout(() => {
-    explosion.style.opacity = "0";
-  }, 1000);
-}
-
-// ----- Dragging -----
-drag.addEventListener("pointerdown", e => {
-  if (exploded) return;
-  stopBounce();
-  isDragging = true;
-  moved = false;
-  startX = e.clientX - x;
-  startY = e.clientY - y;
-  drag.setPointerCapture(e.pointerId);
-  resetIdleTimer();
-});
-
-drag.addEventListener("pointermove", e => {
-  if (!isDragging || exploded) return;
-  moved = true;
-
-  const now = performance.now();
-  const dt = now - lastTime;
-  const dx = e.clientX - lastPos.x;
-  const dy = e.clientY - lastPos.y;
-  const speed = Math.sqrt(dx * dx + dy * dy) / (dt || 1);
-
-  // Higher threshold (harder to trigger)
-  if (speed > 7.5) {
-    triggerExplosion();
-    return;
   }
 
-  lastTime = now;
-  lastPos = { x: e.clientX, y: e.clientY };
-
-  x = e.clientX - startX;
-  y = e.clientY - startY;
-
-  const stageW = window.innerWidth;
-  const stageH = window.innerHeight;
-  x = Math.min(Math.max(x, 0), stageW - w);
-  y = Math.min(Math.max(y, 0), stageH - h);
-
-  drag.style.left = `${x}px`;
-  drag.style.top = `${y}px`;
-});
-
-drag.addEventListener("pointerup", e => {
-  if (exploded) return;
-  isDragging = false;
-  drag.releasePointerCapture(e.pointerId);
-  if (!moved) {
-    img.classList.remove("spin");
-    void img.offsetWidth;
-    img.classList.add("spin");
+  function startBounce() {
+    if (bouncing || exploded) return;
+    bouncing = true;
+    const bounce = () => {
+      if (!bouncing || exploded) return;
+      const stageW = window.innerWidth;
+      const stageH = window.innerHeight;
+      x += vx;
+      y += vy;
+      if (x <= 0) { x = 0; vx = Math.abs(vx); }
+      else if (x + w >= stageW) { x = stageW - w; vx = -Math.abs(vx); }
+      if (y <= 0) { y = 0; vy = Math.abs(vy); }
+      else if (y + h >= stageH) { y = stageH - h; vy = -Math.abs(vy); }
+      drag.style.left = `${x}px`;
+      drag.style.top = `${y}px`;
+      animationFrame = requestAnimationFrame(bounce);
+    };
+    bounce();
   }
-  resetIdleTimer();
-});
 
-// Initialize
-updateBounds();
-startBounce();
+  function stopBounce() {
+    bouncing = false;
+    cancelAnimationFrame(animationFrame);
+  }
+
+  function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (!bouncing && !exploded) startBounce();
+    }, 5000);
+  }
+
+  function triggerExplosion() {
+    exploded = true;
+    stopBounce();
+    img.style.display = "none";
+    explosion.style.left = `${x + w / 2 - 120}px`;
+    explosion.style.top = `${y + h / 2 - 120}px`;
+    explosion.style.display = "block";
+    explosion.style.opacity = "1";
+    explosion.src = "";
+    setTimeout(() => { explosion.src = "explosion.gif"; }, 50);
+    setTimeout(() => { explosion.style.opacity = "0"; }, 1000);
+  }
+
+  drag.addEventListener("pointerdown", e => {
+    if (exploded) return;
+    stopBounce();
+    isDragging = true;
+    moved = false;
+    startX = e.clientX - x;
+    startY = e.clientY - y;
+    drag.setPointerCapture(e.pointerId);
+    resetIdleTimer();
+  });
+
+  drag.addEventListener("pointermove", e => {
+    if (!isDragging || exploded) return;
+    moved = true;
+    const now = performance.now();
+    const dt = now - lastTime;
+    const dx = e.clientX - lastPos.x;
+    const dy = e.clientY - lastPos.y;
+    const speed = Math.sqrt(dx * dx + dy * dy) / (dt || 1);
+    if (speed > 7.5) { triggerExplosion(); return; }
+    lastTime = now;
+    lastPos = { x: e.clientX, y: e.clientY };
+    x = e.clientX - startX;
+    y = e.clientY - startY;
+    const stageW = window.innerWidth;
+    const stageH = window.innerHeight;
+    x = Math.min(Math.max(x, 0), stageW - w);
+    y = Math.min(Math.max(y, 0), stageH - h);
+    drag.style.left = `${x}px`;
+    drag.style.top = `${y}px`;
+  });
+
+  drag.addEventListener("pointerup", e => {
+    if (exploded) return;
+    isDragging = false;
+    drag.releasePointerCapture(e.pointerId);
+    if (!moved) {
+      img.classList.remove("spin");
+      void img.offsetWidth;
+      img.classList.add("spin");
+    }
+    resetIdleTimer();
+  });
+
+  updateBounds();
+  startBounce();
+}
+
+spawnBtn.addEventListener("click", createKatamari);
+createKatamari(); // start with one
 </script>
+
 </body>
 </html>
