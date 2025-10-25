@@ -1,101 +1,93 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>katamari</title>
-<style>
-  html, body {
-    height: 100%;
-    margin: 0;
-    background: #0d0d0d;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Katamari</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background: radial-gradient(circle, #1a1a1a, #000);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      cursor: grab;
+      user-select: none;
+    }
 
-  .stage {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    touch-action: none;
-  }
+    img {
+      width: 128px;
+      height: 128px;
+      transition: transform 0.4s ease;
+      position: absolute;
+    }
 
-  .drag {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    cursor: grab;
-    user-select: none;
-    touch-action: none;
-  }
+    .spinning {
+      animation: spin 1s linear infinite;
+    }
 
-  .drag:active {
-    cursor: grabbing;
-  }
-
-  img {
-    display: block;
-    width: 180px;
-    height: auto;
-    -webkit-user-drag: none;
-    user-drag: none;
-    pointer-events: none;
-    transition: transform 0.1s ease-out;
-  }
-
-  .spin {
-    animation: spin 0.8s linear;
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-</style>
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
-  <div class="stage">
-    <div class="drag" id="draggable">
-      <img id="emoji" src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128" alt="katamari emoji">
-    </div>
-  </div>
+  <img
+    id="katamari"
+    src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128"
+    alt="Katamari Emoji"
+  />
 
-<script>
-const drag = document.getElementById("draggable");
-const img = document.getElementById("emoji");
+  <script>
+    const img = document.getElementById("katamari");
+    let isDragging = false;
+    let offsetX, offsetY;
 
-let isDragging = false;
-let startX, startY, offsetX = 0, offsetY = 0;
-let moved = false;
+    // Handle dragging
+    img.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      offsetX = e.clientX - img.offsetLeft;
+      offsetY = e.clientY - img.offsetTop;
+      document.body.style.cursor = "grabbing";
+    });
 
-drag.addEventListener("pointerdown", e => {
-  isDragging = true;
-  startX = e.clientX - offsetX;
-  startY = e.clientY - offsetY;
-  drag.setPointerCapture(e.pointerId);
-  moved = false;
-});
+    document.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      img.style.left = `${e.clientX - offsetX}px`;
+      img.style.top = `${e.clientY - offsetY}px`;
+    });
 
-drag.addEventListener("pointermove", e => {
-  if (!isDragging) return;
-  moved = true;
-  offsetX = e.clientX - startX;
-  offsetY = e.clientY - startY;
-  drag.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
-});
+    document.addEventListener("mouseup", () => {
+      isDragging = false;
+      document.body.style.cursor = "grab";
+    });
 
-drag.addEventListener("pointerup", e => {
-  isDragging = false;
-  drag.releasePointerCapture(e.pointerId);
-  if (!moved) {
-    img.classList.remove("spin");
-    void img.offsetWidth; // reset animation
-    img.classList.add("spin");
-  }
-});
-</script>
+    // Touch support
+    img.addEventListener("touchstart", (e) => {
+      isDragging = true;
+      const touch = e.touches[0];
+      offsetX = touch.clientX - img.offsetLeft;
+      offsetY = touch.clientY - img.offsetTop;
+    });
+
+    document.addEventListener("touchmove", (e) => {
+      if (!isDragging) return;
+      const touch = e.touches[0];
+      img.style.left = `${touch.clientX - offsetX}px`;
+      img.style.top = `${touch.clientY - offsetY}px`;
+    });
+
+    document.addEventListener("touchend", () => {
+      isDragging = false;
+    });
+
+    // Spin on click/tap
+    img.addEventListener("click", () => {
+      img.classList.toggle("spinning");
+    });
+  </script>
 </body>
 </html>
