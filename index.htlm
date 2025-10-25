@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KATAMARI!!</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #111;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    img {
+      max-width: 128px;
+      transition: transform 1s ease-in-out;
+      cursor: pointer;
+    }
+
+    img.spin {
+      animation: spin 1s linear;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <img
+    id="spinImage"
+    src="https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128"
+    alt="Image"
+  />
+
+  <script>
+    const img = document.getElementById("spinImage");
+    img.addEventListener("click", () => {
+      img.classList.add("spin");
+      // remove the class after animation ends so it can spin again on next click
+      img.addEventListener("animationend", () => img.classList.remove("spin"), { once: true });
+    });
+  </script>
+</body>
+</html>
