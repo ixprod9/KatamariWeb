@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>katamari</title>
+<title>Katamari</title>
 <style>
   html, body {
     height: 100%;
@@ -66,12 +66,18 @@
 <script>
 const drag = document.getElementById("draggable");
 const img = document.getElementById("emoji");
+const stage = document.querySelector(".stage");
 
 let isDragging = false;
 let startX, startY, offsetX = 0, offsetY = 0;
 let moved = false;
+let bouncing = false;
+let vx = 2, vy = 2; // velocity
+let animationFrame;
 
+// ----- Dragging -----
 drag.addEventListener("pointerdown", e => {
+  if (bouncing) return; // disable dragging while bouncing
   isDragging = true;
   startX = e.clientX - offsetX;
   startY = e.clientY - offsetY;
@@ -80,7 +86,7 @@ drag.addEventListener("pointerdown", e => {
 });
 
 drag.addEventListener("pointermove", e => {
-  if (!isDragging) return;
+  if (!isDragging || bouncing) return;
   moved = true;
   offsetX = e.clientX - startX;
   offsetY = e.clientY - startY;
@@ -88,13 +94,71 @@ drag.addEventListener("pointermove", e => {
 });
 
 drag.addEventListener("pointerup", e => {
+  if (bouncing) return;
   isDragging = false;
   drag.releasePointerCapture(e.pointerId);
   if (!moved) {
     img.classList.remove("spin");
-    void img.offsetWidth; // reset animation
+    void img.offsetWidth; // restart spin animation
     img.classList.add("spin");
   }
+});
+
+// ----- DVD Bounce Logic -----
+function startBounce() {
+  const rect = img.getBoundingClientRect();
+  let x = rect.left;
+  let y = rect.top;
+  const w = rect.width;
+  const h = rect.height;
+
+  const bounce = () => {
+    const stageW = window.innerWidth;
+    const stageH = window.innerHeight;
+
+    x += vx;
+    y += vy;
+
+    if (x <= 0 || x + w >= stageW) {
+      vx = -vx;
+      img.style.filter = `hue-rotate(${Math.random() * 360}deg)`; // color shift for fun
+    }
+    if (y <= 0 || y + h >= stageH) {
+      vy = -vy;
+      img.style.filter = `hue-rotate(${Math.random() * 360}deg)`;
+    }
+
+    drag.style.transform = `translate(${x}px, ${y}px)`;
+    animationFrame = requestAnimationFrame(bounce);
+  };
+
+  bounce();
+}
+
+function stopBounce() {
+  cancelAnimationFrame(animationFrame);
+  bouncing = false;
+  // Reset transform back to center
+  drag.style.transform = `translate(-50%, -50%)`;
+  offsetX = 0;
+  offsetY = 0;
+}
+
+// ----- Double-click / Double-tap -----
+let lastTap = 0;
+img.addEventListener("click", (e) => {
+  const now = Date.now();
+  if (now - lastTap < 300) {
+    bouncing = !bouncing;
+    if (bouncing) startBounce();
+    else stopBounce();
+  }
+  lastTap = now;
+});
+
+// Handle window resize
+window.addEventListener("resize", () => {
+  if (bouncing) stopBounce();
 });
 </script>
 </body>
