@@ -50,7 +50,7 @@
     to { transform: rotate(360deg); }
   }
 
-  #explosion {
+  .explosion {
     position: absolute;
     width: 240px;
     height: auto;
@@ -85,13 +85,11 @@
 
   <button id="spawnBtn">Spawn Katamari</button>
 
-  <img id="explosion" src="explosion.gif" alt="Explosion">
+  <audio id="boomSound" src="boom.mp3" preload="auto"></audio>
 
 <script>
-const explosionTemplate = document.getElementById("explosion");
 const spawnBtn = document.getElementById("spawnBtn");
 const baseEmoji = "https://cdn.discordapp.com/emojis/1318694929677029587.webp?size=128";
-
 let katamariCount = 0;
 
 function createKatamari() {
@@ -105,10 +103,11 @@ function createKatamari() {
   img.alt = "katamari emoji";
   drag.appendChild(img);
   document.body.appendChild(drag);
-  
-  const explosion = explosionTemplate.cloneNode(true);
+
+  const explosion = document.createElement("img");
+  explosion.classList.add("explosion");
+  explosion.src = "explosion.gif";
   explosion.id = "explosion_" + katamariCount++;
-  explosion.style.display = "none";
   document.body.appendChild(explosion);
 
   initKatamari(drag, img, explosion);
@@ -130,17 +129,6 @@ function initKatamari(drag, img, explosion) {
   let lastTime = 0;
   let lastPos = { x: 0, y: 0 };
   let exploded = false;
-
-  function updateBounds() {
-    const stageW = window.innerWidth;
-    const stageH = window.innerHeight;
-    w = img.offsetWidth;
-    h = img.offsetHeight;
-    x = Math.min(Math.max(x, 0), stageW - w);
-    y = Math.min(Math.max(y, 0), stageH - h);
-    drag.style.left = `${x}px`;
-    drag.style.top = `${y}px`;
-  }
 
   function startBounce() {
     if (bouncing || exploded) return;
@@ -175,16 +163,26 @@ function initKatamari(drag, img, explosion) {
   }
 
   function triggerExplosion() {
+    if (exploded) return;
     exploded = true;
     stopBounce();
     img.style.display = "none";
+
+    // explosion at image center
     explosion.style.left = `${x + w / 2 - 120}px`;
     explosion.style.top = `${y + h / 2 - 120}px`;
     explosion.style.display = "block";
     explosion.style.opacity = "1";
-    explosion.src = "";
-    setTimeout(() => { explosion.src = "explosion.gif"; }, 50);
-    setTimeout(() => { explosion.style.opacity = "0"; }, 1000);
+
+    // play explosion sound
+    const boomSound = document.getElementById("boomSound");
+    boomSound.currentTime = 0;
+    boomSound.play().catch(()=>{});
+
+    // fade out explosion
+    setTimeout(() => {
+      explosion.style.opacity = "0";
+    }, 1000);
   }
 
   drag.addEventListener("pointerdown", e => {
@@ -231,7 +229,6 @@ function initKatamari(drag, img, explosion) {
     resetIdleTimer();
   });
 
-  updateBounds();
   startBounce();
 }
 
