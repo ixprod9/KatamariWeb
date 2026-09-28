@@ -9,6 +9,7 @@
 <style>
 /* dark checker stage, floating tab pill top, draggable green-bordered dock bottom (matches the spawner page) */
 :root{--bg:#111;--check:#1a1a1a;--green:#26c950;--green-dk:#1faa43;--panel:rgba(25,25,25,.9);--fg:#fff;--muted:rgba(255,255,255,.55);--font:"Lilita One","Arial Rounded MT Bold","Arial Black",sans-serif;color-scheme:dark}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0;overflow:hidden}
 body{background-color:var(--bg);background-image:linear-gradient(45deg,var(--check) 25%,transparent 25%),linear-gradient(-45deg,var(--check) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,var(--check) 75%),linear-gradient(-45deg,transparent 75%,var(--check) 75%);background-size:40px 40px;color:var(--fg);font-family:var(--font);-webkit-user-select:none;user-select:none}
 #app{position:relative;height:100%;overflow:hidden}
@@ -438,10 +439,15 @@ addEventListener('keydown',e=>{
 });
 addEventListener('paste',e=>{const it=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(it){initAudio();loadFile(it.getAsFile(),tab==='squish')}});
 let dc=0;
-addEventListener('dragenter',e=>{e.preventDefault();dc++;$('drop').hidden=false;$('drop').textContent=tab==='squish'?'Drop to squish':'Drop to set katamari image'});
-addEventListener('dragover',e=>e.preventDefault());
-addEventListener('dragleave',()=>{if(--dc<=0){dc=0;$('drop').hidden=true}});
-addEventListener('drop',e=>{e.preventDefault();dc=0;$('drop').hidden=true;initAudio();loadFile(e.dataTransfer.files[0],tab==='squish')});
+const isFileDrag=e=>[...(e.dataTransfer?.types||[])].includes('Files');
+const hideDrop=()=>{dc=0;$('drop').hidden=true};
+addEventListener('dragenter',e=>{if(!isFileDrag(e))return;e.preventDefault();dc++;$('drop').hidden=false;$('drop').textContent=tab==='squish'?'Drop to squish':'Drop to set katamari image'});
+addEventListener('dragover',e=>{if(isFileDrag(e))e.preventDefault()});
+addEventListener('dragleave',e=>{if(--dc<=0||!e.relatedTarget)hideDrop()});
+addEventListener('dragend',hideDrop);
+addEventListener('pointerdown',hideDrop,true);
+addEventListener('blur',hideDrop);
+addEventListener('drop',e=>{e.preventDefault();hideDrop();if(!e.dataTransfer?.files?.length)return;initAudio();loadFile(e.dataTransfer.files[0],tab==='squish')});
 
 function resize(){const w=cv.clientWidth,h=cv.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.fov=w<h?52:38;camera.updateProjectionMatrix()}
 addEventListener('resize',()=>{resize();placeDock()});
