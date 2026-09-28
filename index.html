@@ -235,11 +235,13 @@ dock.addEventListener('pointerup',e=>{dDrag=false;try{dock.releasePointerCapture
 const kats=[];let collisions=true,follow=false,mx=-1e4,my=-1e4,lastTok=0;
 $('collisionToggle').onchange=e=>collisions=e.target.checked;
 $('followToggle').onchange=e=>follow=e.target.checked;
-stage.addEventListener('pointermove',e=>{const r=stage.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top});
+let zoom=1;
+const toStage=e=>{const r=stage.getBoundingClientRect();return[(e.clientX-r.left)/zoom,(e.clientY-r.top)/zoom]};
+stage.addEventListener('pointermove',e=>{[mx,my]=toStage(e)});
 stage.addEventListener('pointerleave',()=>{mx=my=-1e4});
 
 function spawn(){
-  const W=stage.clientWidth||app.clientWidth,H=stage.clientHeight||app.clientHeight,S=Math.round(Math.min(160,W*.3)),R=S/2;
+  const W=stage.clientWidth||app.clientWidth,H=stage.clientHeight||app.clientHeight,S=Math.round(Math.min(160,app.clientWidth*.3)),R=S/2;
   const el=document.createElement('div');el.className='kat';el.style.width=S+'px';
   const img=document.createElement('img');img.src=katURL;img.alt='';img.draggable=false;el.appendChild(img);stage.appendChild(el);
   const k={el,x:Math.random()*Math.max(1,W-S),y:Math.random()*Math.max(1,H-S),vx:(Math.random()<.5?-1:1)*4,vy:(Math.random()<.5?-1:1)*4,r:R,held:false,dead:false};
@@ -252,7 +254,7 @@ function spawn(){
     if(!k.held||k.dead)return;const now=performance.now(),dt=now-lt||1,dx=e.clientX-lx,dy=e.clientY-ly;
     if(Math.hypot(dx,dy)/dt>7.5)return explode(k);
     tvx=dx/dt*16;tvy=dy/dt*16;lt=now;lx=e.clientX;ly=e.clientY;
-    const r=stage.getBoundingClientRect();k.x=e.clientX-r.left-k.r;k.y=e.clientY-r.top-k.r;
+    const[sx,sy]=toStage(e);k.x=sx-k.r;k.y=sy-k.r;
   });
   const up=e=>{if(!k.held)return;k.held=false;try{el.releasePointerCapture(e.pointerId)}catch(_){}
     if(!k.dead){k.vx=clamp(tvx,-14,14);k.vy=clamp(tvy,-14,14);if(Math.hypot(k.vx,k.vy)<1){k.vx=(Math.random()<.5?-1:1)*4;k.vy=(Math.random()<.5?-1:1)*4}}};
@@ -275,6 +277,7 @@ function explode(k){
 function stepSpawner(dt){
   const W=stage.clientWidth,H=stage.clientHeight;
   for(let i=kats.length-1;i>=0;i--)if(kats[i].dead)kats.splice(i,1);
+  stepZoom(dt);
   if(pl){pl.acc+=Math.min(dt,.1);while(pl.acc>=TICK){pl.acc-=TICK;tickPlayer(W,H)}drawPlayer()}
   for(let i=0;i<kats.length;i++){
     const a=kats[i];
@@ -306,7 +309,7 @@ const KEYMAP={w:'u',arrowup:'u',s:'d',arrowdown:'d',a:'l',arrowleft:'l',d:'r',ar
 addEventListener('keydown',e=>{const m=KEYMAP[e.key.toLowerCase()];if(m&&pl&&tab==='spawn'){keys[m]=true;e.preventDefault()}});
 addEventListener('keyup',e=>{const m=KEYMAP[e.key.toLowerCase()];if(m)keys[m]=false});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;steer=false});
-stage.addEventListener('pointerdown',e=>{if(pl&&(e.target===stage||e.button===2)){steer=true;const r=stage.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top}});
+stage.addEventListener('pointerdown',e=>{if(pl&&(e.target===stage||e.button===2)){steer=true;[mx,my]=toStage(e)}});
 stage.addEventListener('contextmenu',e=>{if(pl)e.preventDefault()});
 addEventListener('pointerup',()=>steer=false);addEventListener('pointercancel',()=>steer=false);
 
@@ -333,6 +336,9 @@ function setCore(obj){
   const box=new THREE.Box3().setFromObject(obj),ctr=box.getCenter(new THREE.Vector3()),sph=box.getBoundingSphere(new THREE.Sphere());
   if(!isFinite(sph.radius)||sph.radius<=0)return;
   obj.position.sub(ctr);
+  const wrap=new THREE.Group();wrap.add(obj);wrap.updateMatrixWorld(true);let mr=0;const pv=new THREE.Vector3();
+  obj.traverse(m=>{if(m.isMesh&&m.geometry.attributes.position){const pa=m.geometry.attributes.position;for(let i=0;i<pa.count;i++){pv.fromBufferAttribute(pa,i).applyMatrix4(m.matrixWorld);mr=Math.max(mr,pv.length())}}});
+  if(mr>0)sph.radius=mr;
   obj.traverse(m=>{if(m.isMesh){(Array.isArray(m.material)?m.material:[m.material]).forEach(x=>{if(x.map)x.map.encoding=THREE.sRGBEncoding;x.needsUpdate=true})}});
   coreHolder.clear();coreHolder.add(obj);coreRadius=sph.radius;
 }
@@ -350,9 +356,9 @@ function setRoll(on){
   $('rollToggle').checked=on;
   if(on&&!pl){
     initRoll3D();
-    const W=stage.clientWidth||app.clientWidth,H=stage.clientHeight||app.clientHeight,S=Math.round(Math.min(160,W*.3));
+    const W=stage.clientWidth||app.clientWidth,H=stage.clientHeight||app.clientHeight,S=Math.round(Math.min(160,app.clientWidth*.3));
     rollRen.domElement.hidden=false;
-    pl={x:W/2,y:H/2,vx:0,vy:0,R:Math.ceil(Math.cbrt(3*S*S*S/(4*Math.PI)))+2,q:new THREE.Quaternion(),items:0,acc:0};
+    pl={x:W/2,y:H/2,vx:0,vy:0,R:Math.ceil(Math.cbrt(3*S*S*S/(4*Math.PI)))+2,q:new THREE.Quaternion(),items:0,acc:0,ext:0};
     $('hud').hidden=false;hud();sfx.jingle();
   }else if(!on&&pl){
     for(const k of kats)if(k.stuck){
@@ -373,9 +379,9 @@ function tickPlayer(W,H){
   if(l>0){pl.vx+=ax/l*ACC;pl.vy+=ay/l*ACC}else{pl.vx*=DRAG;pl.vy*=DRAG}
   const sp=Math.hypot(pl.vx,pl.vy);if(sp>MAXV){pl.vx*=MAXV/sp;pl.vy*=MAXV/sp}
   pl.x+=pl.vx;pl.y+=pl.vy;
-  const R=pl.R;let bounce=false;
-  if(pl.x-R<0){pl.x=R+1;pl.vx=-pl.vx;bounce=true}else if(pl.x+R>W){pl.x=W-R-1;pl.vx=-pl.vx;bounce=true}
-  if(pl.y-R<0){pl.y=R+1;pl.vy=-pl.vy;bounce=true}else if(pl.y+R>H){pl.y=H-R-1;pl.vy=-pl.vy;bounce=true}
+  const R=pl.R,E=Math.min(R+pl.ext,W/2-1,H/2-1);let bounce=false;
+  if(pl.x-E<0){pl.x=E+1;pl.vx=-pl.vx;bounce=true}else if(pl.x+E>W){pl.x=W-E-1;pl.vx=-pl.vx;bounce=true}
+  if(pl.y-E<0){pl.y=E+1;pl.vy=-pl.vy;bounce=true}else if(pl.y+E>H){pl.y=H-E-1;pl.vy=-pl.vy;bounce=true}
   if(bounce&&sp>2)sfx.tok();
   const mdx=pl.x-ox,mdy=pl.y-oy,dist=Math.hypot(mdx,mdy);
   if(dist>0){axis.set(mdy/dist,mdx/dist,0);qd.setFromAxisAngle(axis,dist/R);pl.q.premultiply(qd)}
@@ -387,11 +393,16 @@ function tickPlayer(W,H){
     attach(k,dx,dy,d);
   }
 }
+const V3=THREE.Vector3,SX=new V3(1,0,0),SD=new V3(0,-1,0),tu=new V3(),tv=new V3();
 function attach(k,dx,dy,d){
   const nx=d?dx/d:1,ny=d?dy/d:0;
-  qi.copy(pl.q).invert();
   pl.R=Math.cbrt((ballVol(pl.R)+itemVol(k))*3/(4*Math.PI));pl.items++;hud();sfx.pickup(pl.items);
-  k.att={loc:new THREE.Vector3(nx,-ny,0).applyQuaternion(qi),r:pl.R*.92};
+  const n=new V3(nx,-ny,.6).normalize();
+  const u=SX.clone().addScaledVector(n,-n.dot(SX));if(u.lengthSq()<1e-4)u.set(0,1,0).addScaledVector(n,-n.y);u.normalize();
+  const v=new V3().crossVectors(n,u);if(v.dot(SD)<0)v.negate();
+  qi.copy(pl.q).invert();
+  k.att={n:n.applyQuaternion(qi),u:u.applyQuaternion(qi),v:v.applyQuaternion(qi),r:pl.R*.98};
+  pl.ext=Math.max(pl.ext,k.r*.9);
   k.stuck=true;k.held=false;k.el.classList.add('stuck');
   k.el.style.left=k.el.style.top=-k.r+'px';k.el.style.transformOrigin=k.r+'px '+k.r+'px';
 }
@@ -402,14 +413,20 @@ function drawPlayer(){
   rollRen.render(rScene,rCam);
   for(const k of kats){
     if(!k.stuck)continue;const a=k.att;
-    if(a.r+k.r*.5<R){explodeQuiet(k);continue}
-    nv.copy(a.loc).applyQuaternion(pl.q);
-    const sx=nv.x*a.r,sy=-nv.y*a.r,s=Math.max(.06,Math.hypot(nv.x,nv.y));
+    if(a.r+k.r*.3<R){explodeQuiet(k);continue}
+    nv.copy(a.n).applyQuaternion(pl.q);tu.copy(a.u).applyQuaternion(pl.q);tv.copy(a.v).applyQuaternion(pl.q);
+    const sx=nv.x*a.r,sy=-nv.y*a.r;
     k.x=pl.x+sx-k.r;k.y=pl.y+sy-k.r;
-    if(nv.z<0&&Math.hypot(sx,sy)+k.r*.5<R){k.el.style.display='none';continue}
-    k.el.style.display='';k.el.style.zIndex=nv.z>=0?3:1;
-    k.el.style.transform=`translate(${pl.x+sx}px,${pl.y+sy}px) rotate(${Math.atan2(sy,sx)}rad) scaleX(${s})`;
+    k.el.style.zIndex=nv.z>=0?3:1;
+    k.el.style.transform=`translate(${pl.x+sx}px,${pl.y+sy}px) matrix(${tu.x},${-tu.y},${tv.x},${-tv.y},0,0)`;
   }
+}
+function stepZoom(dt){
+  const aw=app.clientWidth,ah=app.clientHeight,t=pl?Math.min(1,Math.min(aw,ah)*.2/(pl.R+pl.ext*.5)):1;
+  if(Math.abs(t-zoom)<1e-4&&zoom===t)return;
+  zoom+=(t-zoom)*Math.min(1,dt*2.5);if(Math.abs(t-zoom)<1e-4)zoom=t;
+  if(zoom===1){stage.style.transform=stage.style.width=stage.style.height=''}
+  else{stage.style.transformOrigin='0 0';stage.style.transform=`scale(${zoom})`;stage.style.width=aw/zoom+'px';stage.style.height=ah/zoom+'px'}
 }
 function explodeQuiet(k){k.dead=true;k.el.remove()}
 $('spawnBtn').onclick=()=>{initAudio();spawn()};
