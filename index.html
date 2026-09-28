@@ -24,7 +24,7 @@ body{background-color:var(--bg);background-image:linear-gradient(45deg,var(--che
 .pane{position:absolute;inset:0}
 canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:move}
 canvas#c.can-grab{cursor:grab}canvas#c.grabbing{cursor:grabbing}
-#stage{touch-action:none}
+#stage{touch-action:none;isolation:isolate}
 
 .tabs{position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;gap:6px;padding:6px;background:var(--panel);border:2px solid var(--green);border-radius:20px;box-shadow:0 6px 20px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:10}
 .tab{background:transparent;color:var(--fg);font:20px var(--font);letter-spacing:1px;text-transform:uppercase;border:none;border-radius:14px;padding:8px 22px;cursor:pointer;transition:background-color .2s}
@@ -61,7 +61,7 @@ label.tg.off input{cursor:not-allowed}
 
 .kat{position:absolute;left:0;top:0;cursor:grab;touch-action:none}
 .kat.stuck{z-index:3;pointer-events:none}
-.player{position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;pointer-events:none}
+.player{position:absolute;left:0;top:0;width:100%;height:100%;z-index:1000;pointer-events:none}
 .hud{position:absolute;top:16px;left:16px;background:var(--panel);border:2px solid var(--green);border-radius:16px;padding:8px 16px;font-size:20px;line-height:1.3;z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.5);font-variant-numeric:tabular-nums}
 .hud b{color:var(--green);font-weight:normal}
 @media (max-width:760px){.hud{top:118px;font-size:16px}}
@@ -358,7 +358,7 @@ function setRoll(on){
     initRoll3D();
     const W=stage.clientWidth||app.clientWidth,H=stage.clientHeight||app.clientHeight,S=Math.round(Math.min(160,app.clientWidth*.3));
     rollRen.domElement.hidden=false;
-    pl={x:W/2,y:H/2,vx:0,vy:0,R:Math.ceil(Math.cbrt(3*S*S*S/(4*Math.PI)))+2,q:new THREE.Quaternion(),items:0,acc:0,ext:0};
+    pl={x:W/2,y:H/2,vx:0,vy:0,R:Math.ceil(Math.cbrt(3*S*S*S/(4*Math.PI)))+2,core:0,q:new THREE.Quaternion(),items:0,acc:0,ext:0};pl.core=pl.R;
     $('hud').hidden=false;hud();sfx.jingle();
   }else if(!on&&pl){
     for(const k of kats)if(k.stuck){
@@ -396,28 +396,30 @@ function tickPlayer(W,H){
 const V3=THREE.Vector3,SX=new V3(1,0,0),SD=new V3(0,-1,0),tu=new V3(),tv=new V3();
 function attach(k,dx,dy,d){
   const nx=d?dx/d:1,ny=d?dy/d:0;
-  pl.R=Math.cbrt((ballVol(pl.R)+itemVol(k))*3/(4*Math.PI));pl.items++;hud();sfx.pickup(pl.items);
-  const n=new V3(nx,-ny,.6).normalize();
+    const n=new V3(nx,-ny,.6).normalize();
   const u=SX.clone().addScaledVector(n,-n.dot(SX));if(u.lengthSq()<1e-4)u.set(0,1,0).addScaledVector(n,-n.y);u.normalize();
   const v=new V3().crossVectors(n,u);if(v.dot(SD)<0)v.negate();
   qi.copy(pl.q).invert();
-  k.att={n:n.applyQuaternion(qi),u:u.applyQuaternion(qi),v:v.applyQuaternion(qi),r:pl.R*.98};
-  pl.ext=Math.max(pl.ext,k.r*.9);
+  n.applyQuaternion(qi);let h=pl.core*.98;
+  for(const j of kats){if(!j.stuck||j===k)continue;const b=j.att,ang=Math.acos(Math.max(-1,Math.min(1,n.dot(b.n))));if(ang<(j.r+k.r)*.28/b.r)h=Math.max(h,b.r+j.r*.1)}
+  h=Math.min(h,Math.max(pl.core,pl.R*1.02));
+  k.att={n,u:u.applyQuaternion(qi),v:v.applyQuaternion(qi),r:h};
+  const S=k.r*2;pl.R=Math.cbrt((ballVol(pl.R)+S*S*k.r*.5)*3/(4*Math.PI));
+  pl.ext=Math.max(pl.ext,h+k.r*.9-pl.R);pl.items++;hud();sfx.pickup(pl.items);
   k.stuck=true;k.held=false;k.el.classList.add('stuck');
   k.el.style.left=k.el.style.top=-k.r+'px';k.el.style.transformOrigin=k.r+'px '+k.r+'px';
 }
 function drawPlayer(){
   const W=stage.clientWidth,H=stage.clientHeight,R=pl.R;
   if(W!==rW||H!==rH){rW=W;rH=H;rollRen.setSize(W,H,false);rCam.right=W;rCam.bottom=-H;rCam.updateProjectionMatrix()}
-  coreHolder.position.set(pl.x,-pl.y,0);coreHolder.quaternion.copy(pl.q);coreHolder.scale.setScalar(R/coreRadius);
+  coreHolder.position.set(pl.x,-pl.y,0);coreHolder.quaternion.copy(pl.q);coreHolder.scale.setScalar(pl.core/coreRadius);
   rollRen.render(rScene,rCam);
   for(const k of kats){
     if(!k.stuck)continue;const a=k.att;
-    if(a.r+k.r*.3<R){explodeQuiet(k);continue}
     nv.copy(a.n).applyQuaternion(pl.q);tu.copy(a.u).applyQuaternion(pl.q);tv.copy(a.v).applyQuaternion(pl.q);
     const sx=nv.x*a.r,sy=-nv.y*a.r;
     k.x=pl.x+sx-k.r;k.y=pl.y+sy-k.r;
-    k.el.style.zIndex=nv.z>=0?3:1;
+    k.el.style.zIndex=Math.round(nv.z*a.r)+(nv.z>=0?1001:999);
     k.el.style.transform=`translate(${pl.x+sx}px,${pl.y+sy}px) matrix(${tu.x},${-tu.y},${tv.x},${-tv.y},0,0)`;
   }
 }
