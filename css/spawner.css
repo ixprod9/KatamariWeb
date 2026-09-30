@@ -1,0 +1,86 @@
+/* Spawner tab: bouncing katamari, the rolling-ball overlay and explosion effects. */
+
+#stage {
+  touch-action: none;
+  isolation: isolate;
+}
+
+.kat {
+  position: absolute;
+  left: 0;
+  top: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.kat.stuck { z-index: 3; pointer-events: none; }
+.kat:active { cursor: grabbing; }
+
+.kat img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* WebGL canvas that draws the rolling core. */
+.player {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+/* Explosion: GIF when available, otherwise a CSS flash + particles. */
+.gifboom {
+  position: absolute;
+  width: 240px;
+  margin: -120px 0 0 -120px;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 1s ease-out;
+}
+
+.boom {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.flash {
+  position: absolute;
+  left: -120px;
+  top: -120px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 12%, #ffe14d 26%, #ff7a1a 46%, rgba(255, 60, 20, 0) 70%);
+  animation: flash 1s ease-out forwards;
+}
+
+@keyframes flash {
+  0% { transform: scale(.2); opacity: 1; }
+  30% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+.pt {
+  position: absolute;
+  left: -8px;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--c);
+  animation: fly 1s cubic-bezier(.2, .7, .3, 1) forwards;
+}
+
+@keyframes fly {
+  from { transform: rotate(var(--a)) translateX(0); }
+  to { transform: rotate(var(--a)) translateX(var(--d)) scale(.2); opacity: 0; }
+}

@@ -1,0 +1,14 @@
+/* Squish tab: full-bleed WebGL canvas. */
+
+canvas#c {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: move;
+}
+
+canvas#c.can-grab { cursor: grab; }
+canvas#c.grabbing { cursor: grabbing; }
